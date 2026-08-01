@@ -23,6 +23,7 @@ final class HLSDownloader: NSObject, DownloadWorker {
     private var handle: FileHandle?
     private var bytesWritten: Int64 = 0
     private var keyCache: [String: Data] = [:]
+    private let keyCacheLock = NSLock()
     private let meter = SpeedMeter()
 
     private let concurrency = 4
@@ -194,10 +195,15 @@ final class HLSDownloader: NSObject, DownloadWorker {
     }
 
     private func fetchKey(_ url: URL) async throws -> Data {
-        if let cached = keyCache[url.absoluteString] { return cached }
+        keyCacheLock.lock()
+        let cached = keyCache[url.absoluteString]
+        keyCacheLock.unlock()
+        if let cached { return cached }
         let (data, _) = try await session.data(from: url)
         guard data.count == 16 else { throw HLSError.missingKey }
+        keyCacheLock.lock()
         keyCache[url.absoluteString] = data
+        keyCacheLock.unlock()
         return data
     }
 

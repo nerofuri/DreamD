@@ -17,29 +17,44 @@ struct BrowserView: View {
     }
 }
 
+/// The single sheet a browser tab can present. Driven by one `.sheet(item:)`
+/// so SwiftUI never has to juggle several stacked sheet modifiers at once.
+enum BrowserSheet: Identifiable {
+    case downloads, settings, history, bookmarks, readingList, recentTabs, media
+    case share(URL)
+    case play(URL)
+
+    var id: String {
+        switch self {
+        case .downloads: return "downloads"
+        case .settings: return "settings"
+        case .history: return "history"
+        case .bookmarks: return "bookmarks"
+        case .readingList: return "readingList"
+        case .recentTabs: return "recentTabs"
+        case .media: return "media"
+        case .share(let url): return "share:\(url.absoluteString)"
+        case .play(let url): return "play:\(url.absoluteString)"
+        }
+    }
+}
+
 struct TabContentView: View {
     @ObservedObject var tab: BrowserTab
     @EnvironmentObject var tabManager: TabManager
     @EnvironmentObject var downloads: DownloadManager
 
-    @State private var showDownloads = false
-    @State private var showSettings = false
-    @State private var showHistory = false
-    @State private var showBookmarks = false
-    @State private var showReadingList = false
-    @State private var showRecentTabs = false
-    @State private var showMediaSheet = false
-    @State private var shareItem: URL?
+    @State private var activeSheet: BrowserSheet?
 
     var body: some View {
         VStack(spacing: 0) {
             if tab.isNewTabPage {
                 NewTabPage(tab: tab,
-                           showBookmarks: { showBookmarks = true },
-                           showReadingList: { showReadingList = true },
-                           showRecentTabs: { showRecentTabs = true },
-                           showHistory: { showHistory = true },
-                           showSettings: { showSettings = true })
+                           showBookmarks: { activeSheet = .bookmarks },
+                           showReadingList: { activeSheet = .readingList },
+                           showRecentTabs: { activeSheet = .recentTabs },
+                           showHistory: { activeSheet = .history },
+                           showSettings: { activeSheet = .settings })
             } else {
                 OmniboxBar(tab: tab)
                 if tab.isLoading {
@@ -62,24 +77,30 @@ struct TabContentView: View {
                           showMenu: menuContent)
         }
         .background(ChromeColor.background)
-        .sheet(isPresented: $showDownloads) { DownloadsView() }
-        .sheet(isPresented: $showSettings) { SettingsView() }
-        .sheet(isPresented: $showHistory) { HistorySheet(tab: tab) }
-        .sheet(isPresented: $showBookmarks) { BookmarksSheet(tab: tab, store: BookmarkStore.shared, title: "Bookmarks") }
-        .sheet(isPresented: $showReadingList) { BookmarksSheet(tab: tab, store: BookmarkStore.readingList, title: "Reading list") }
-        .sheet(isPresented: $showRecentTabs) { RecentTabsSheet() }
-        .sheet(isPresented: $showMediaSheet) { MediaListSheet(tab: tab) }
-        .sheet(item: $shareItem) { url in
-            ShareSheet(items: [url])
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .downloads: DownloadsView()
+            case .settings: SettingsView()
+            case .history: HistorySheet(tab: tab)
+            case .bookmarks: BookmarksSheet(tab: tab, store: BookmarkStore.shared, title: "Bookmarks")
+            case .readingList: BookmarksSheet(tab: tab, store: BookmarkStore.readingList, title: "Reading list")
+            case .recentTabs: RecentTabsSheet()
+            case .media: MediaListSheet(tab: tab)
+            case .share(let url): ShareSheet(items: [url])
+            case .play(let url): UniversalPlayerView(url: url)
+            }
         }
-        .sheet(item: $tab.pendingPlayback) { url in
-            UniversalPlayerView(url: url)
+        .onChange(of: tab.pendingPlayback) { url in
+            // The web view asked to play a format it can't render itself.
+            guard let url else { return }
+            activeSheet = .play(url)
+            tab.pendingPlayback = nil
         }
     }
 
     private var mediaPill: some View {
         Button {
-            showMediaSheet = true
+            activeSheet = .media
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.down.circle.fill")
@@ -106,20 +127,20 @@ struct TabContentView: View {
             Label("New Incognito tab", systemImage: "eyeglasses")
         }
         Divider()
-        Button { showDownloads = true } label: {
+        Button { activeSheet = .downloads } label: {
             if downloads.activeCount > 0 {
                 Label("Downloads (\(downloads.activeCount) active)", systemImage: "arrow.down.circle")
             } else {
                 Label("Downloads", systemImage: "arrow.down.circle")
             }
         }
-        Button { showBookmarks = true } label: {
+        Button { activeSheet = .bookmarks } label: {
             Label("Bookmarks", systemImage: "star")
         }
-        Button { showReadingList = true } label: {
+        Button { activeSheet = .readingList } label: {
             Label("Reading list", systemImage: "list.bullet.rectangle")
         }
-        Button { showHistory = true } label: {
+        Button { activeSheet = .history } label: {
             Label("History", systemImage: "clock.arrow.circlepath")
         }
         Divider()
@@ -135,7 +156,7 @@ struct TabContentView: View {
             } label: {
                 Label("Add to Reading list", systemImage: "text.badge.plus")
             }
-            Button { shareItem = url } label: {
+            Button { activeSheet = .share(url) } label: {
                 Label("Share…", systemImage: "square.and.arrow.up")
             }
             Button { tab.toggleDesktopMode() } label: {
@@ -146,13 +167,13 @@ struct TabContentView: View {
                 Label("Reload", systemImage: "arrow.clockwise")
             }
             if !tab.detectedMedia.isEmpty {
-                Button { showMediaSheet = true } label: {
+                Button { activeSheet = .media } label: {
                     Label("Media on this page (\(tab.detectedMedia.count))", systemImage: "film")
                 }
             }
             Divider()
         }
-        Button { showSettings = true } label: {
+        Button { activeSheet = .settings } label: {
             Label("Settings", systemImage: "gearshape")
         }
     }

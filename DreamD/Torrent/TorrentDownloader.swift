@@ -193,6 +193,13 @@ final class TorrentDownloader: NSObject, DownloadWorker {
         timer.setEventHandler { [weak self] in
             guard let self, self.running else { return }
             self.pieceManager?.requeueStale(timeout: 25)
+            if self.meta == nil {
+                // Still fetching metadata for a magnet link; keep asking peers
+                // in case an earlier attempt failed its hash check.
+                for peer in self.connections.values where peer.handshaked {
+                    self.requestMetadata(from: peer)
+                }
+            }
             for peer in self.connections.values where peer.handshaked {
                 self.topUpRequests(peer)
             }

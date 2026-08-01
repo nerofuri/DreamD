@@ -6,9 +6,18 @@ struct FilesView: View {
     var directory: URL = DownloadManager.downloadsDirectory
 
     @State private var entries: [FileEntry] = []
-    @State private var previewURL: URL?
-    @State private var playerURL: URL?
-    @State private var shareURL: URL?
+    @State private var fileSheet: FileSheet?
+
+    private enum FileSheet: Identifiable {
+        case preview(URL), play(URL), share(URL)
+        var id: String {
+            switch self {
+            case .preview(let u): return "preview:\(u.absoluteString)"
+            case .play(let u): return "play:\(u.absoluteString)"
+            case .share(let u): return "share:\(u.absoluteString)"
+            }
+        }
+    }
 
     struct FileEntry: Identifiable {
         let id: String
@@ -39,13 +48,13 @@ struct FilesView: View {
                     .contextMenu {
                         if isPlayable(entry.url) {
                             Button {
-                                playerURL = entry.url
+                                fileSheet = .play(entry.url)
                             } label: {
                                 Label("Play", systemImage: "play.circle")
                             }
                         }
                         Button {
-                            shareURL = entry.url
+                            fileSheet = .share(entry.url)
                         } label: {
                             Label("Share", systemImage: "square.and.arrow.up")
                         }
@@ -73,14 +82,12 @@ struct FilesView: View {
         .navigationTitle(directory == DownloadManager.downloadsDirectory ? "Files" : directory.lastPathComponent)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
-        .sheet(item: $previewURL) { url in
-            QuickLookView(url: url)
-        }
-        .sheet(item: $playerURL) { url in
-            UniversalPlayerView(url: url)
-        }
-        .sheet(item: $shareURL) { url in
-            ShareSheet(items: [url])
+        .sheet(item: $fileSheet) { sheet in
+            switch sheet {
+            case .preview(let url): QuickLookView(url: url)
+            case .play(let url): UniversalPlayerView(url: url)
+            case .share(let url): ShareSheet(items: [url])
+            }
         }
     }
 
@@ -122,11 +129,7 @@ struct FilesView: View {
     }
 
     private func open(_ entry: FileEntry) {
-        if isPlayable(entry.url) {
-            playerURL = entry.url
-        } else {
-            previewURL = entry.url
-        }
+        fileSheet = isPlayable(entry.url) ? .play(entry.url) : .preview(entry.url)
     }
 
     private func reload() {

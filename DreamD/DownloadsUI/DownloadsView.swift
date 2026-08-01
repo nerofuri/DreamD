@@ -77,9 +77,18 @@ struct DownloadsView: View {
 struct DownloadRow: View {
     @ObservedObject var item: DownloadItem
     @EnvironmentObject var downloads: DownloadManager
-    @State private var previewURL: URL?
-    @State private var playerURL: URL?
-    @State private var shareURL: URL?
+    @State private var rowSheet: RowSheet?
+
+    private enum RowSheet: Identifiable {
+        case preview(URL), play(URL), share(URL)
+        var id: String {
+            switch self {
+            case .preview(let u): return "preview:\(u.absoluteString)"
+            case .play(let u): return "play:\(u.absoluteString)"
+            case .share(let u): return "share:\(u.absoluteString)"
+            }
+        }
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -115,24 +124,20 @@ struct DownloadRow: View {
             if item.state == .completed, let url = item.destinationURL,
                FileManager.default.fileExists(atPath: url.path),
                !url.hasDirectoryPath {
-                if PlaybackEngine.isPlayable(url) {
-                    playerURL = url
-                } else {
-                    previewURL = url
-                }
+                rowSheet = PlaybackEngine.isPlayable(url) ? .play(url) : .preview(url)
             }
         }
         .contextMenu {
             if item.state == .completed, let url = item.destinationURL {
                 if PlaybackEngine.isPlayable(url) {
                     Button {
-                        playerURL = url
+                        rowSheet = .play(url)
                     } label: {
                         Label("Play", systemImage: "play.circle")
                     }
                 }
                 Button {
-                    shareURL = url
+                    rowSheet = .share(url)
                 } label: {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
@@ -153,14 +158,12 @@ struct DownloadRow: View {
                 Label("Delete with file", systemImage: "trash")
             }
         }
-        .sheet(item: $previewURL) { url in
-            QuickLookView(url: url)
-        }
-        .sheet(item: $playerURL) { url in
-            UniversalPlayerView(url: url)
-        }
-        .sheet(item: $shareURL) { url in
-            ShareSheet(items: [url])
+        .sheet(item: $rowSheet) { sheet in
+            switch sheet {
+            case .preview(let url): QuickLookView(url: url)
+            case .play(let url): UniversalPlayerView(url: url)
+            case .share(let url): ShareSheet(items: [url])
+            }
         }
     }
 

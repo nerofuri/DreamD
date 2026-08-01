@@ -45,6 +45,12 @@ final class SegmentedHTTPDownloader: NSObject, DownloadWorker {
     private let meter = SpeedMeter()
     private var uiTimer: DispatchSourceTimer?
 
+    /// Guards the fields the main-queue UI timer reads while the delegate queue
+    /// writes them (`parts` itself is only touched on the delegate queue).
+    private let stateLock = NSLock()
+    private var receivedCounter: Int64 = 0
+    private var isSegmented = false
+
     init(item: DownloadItem, url: URL) {
         self.item = item
         self.url = url
@@ -67,6 +73,8 @@ final class SegmentedHTTPDownloader: NSObject, DownloadWorker {
         delegateQueue.addOperation { [weak self] in
             guard let self, !self.finished else { return }
             self.isPaused = true
+            self.probeTask?.cancel()
+            self.probeTask = nil
             for task in self.runningTasks.values { task.cancel() }
             self.runningTasks.removeAll()
             if let single = self.singleTask {
@@ -117,6 +125,7 @@ final class SegmentedHTTPDownloader: NSObject, DownloadWorker {
     // MARK: - Setup after probe
 
     private func handleProbeResponse(_ response: HTTPURLResponse) {
+        guard !isPaused, !isCancelled else { return }
         applyFileName(from: response)
         if response.statusCode == 206,
            let contentRange = response.value(forHTTPHeaderField: "Content-Range"),
@@ -172,6 +181,7 @@ final class SegmentedHTTPDownloader: NSObject, DownloadWorker {
             return Part(offset: offset, length: length)
         }
 
+        stateLock.lock(); isSegmented = true; stateLock.unlock()
         item.update { $0.state = .downloading; $0.totalBytes = total }
         launchPendingParts()
     }
@@ -234,15 +244,17 @@ final class SegmentedHTTPDownloader: NSObject, DownloadWorker {
         timer.schedule(deadline: .now() + 0.5, repeating: 0.5)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            let received = self.parts.reduce(Int64(0)) { $0 + $1.written }
+            self.stateLock.lock()
+            let received = self.receivedCounter
+            let segmented = self.isSegmented
+            self.stateLock.unlock()
             let speed = self.meter.speed
-            if self.item.state == .downloading && !self.parts.isEmpty {
+            guard self.item.state == .downloading else { return }
+            if segmented {
                 self.item.receivedBytes = received
-                self.item.speed = speed
                 self.item.detail = ""
-            } else if self.item.state == .downloading {
-                self.item.speed = speed
             }
+            self.item.speed = speed
         }
         timer.resume()
         uiTimer = timer
@@ -272,8 +284,18 @@ extension SegmentedHTTPDownloader: URLSessionDataDelegate, URLSessionDownloadDel
             handleProbeResponse(http)
             return
         }
-        if http.statusCode == 206 || http.statusCode == 200 {
+        if http.statusCode == 206 || (http.statusCode == 200 && parts.count <= 1) {
             completionHandler(.allow)
+        } else if http.statusCode == 200 {
+            // The server ignored our byte range on a multi-part connection and
+            // is sending the whole file; the other parts would corrupt it.
+            completionHandler(.cancel)
+            if !finished, !isPaused, !isCancelled {
+                for other in runningTasks.values { other.cancel() }
+                runningTasks.removeAll()
+                stopUITimer()
+                item.fail("This server doesn't support multi-part downloads. Set Connections per download to 1 in Settings and retry.")
+            }
         } else {
             completionHandler(.cancel)
             item.fail("Server returned HTTP \(http.statusCode) for a file part")
@@ -283,11 +305,18 @@ extension SegmentedHTTPDownloader: URLSessionDataDelegate, URLSessionDownloadDel
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         guard let index = taskToPart[dataTask.taskIdentifier], let handle else { return }
         let part = parts[index]
+        // Never write past this part's boundary, in case a server ignored the
+        // range and started streaming the whole file into a part connection.
+        let room = part.length - part.written
+        guard room > 0 else { return }
+        let slice = Int64(data.count) <= room ? data : data.prefix(Int(room))
         let writeOffset = part.offset + part.written
         handle.seek(toFileOffset: UInt64(writeOffset))
-        handle.write(data)
-        parts[index].written += Int64(data.count)
-        meter.add(Int64(data.count))
+        handle.write(slice)
+        let n = Int64(slice.count)
+        parts[index].written += n
+        stateLock.lock(); receivedCounter += n; stateLock.unlock()
+        meter.add(n)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {

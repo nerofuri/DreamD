@@ -1,5 +1,4 @@
 import SwiftUI
-import AVKit
 
 /// Browses the app's Downloads folder. Files are also visible in the
 /// system Files app (On My iPhone → DreamD) thanks to file sharing.
@@ -78,7 +77,7 @@ struct FilesView: View {
             QuickLookView(url: url)
         }
         .sheet(item: $playerURL) { url in
-            PlayerView(url: url)
+            UniversalPlayerView(url: url)
         }
         .sheet(item: $shareURL) { url in
             ShareSheet(items: [url])
@@ -119,7 +118,7 @@ struct FilesView: View {
     }
 
     private func isPlayable(_ url: URL) -> Bool {
-        ["mp4", "mov", "m4v", "mp3", "m4a", "aac"].contains(url.pathExtension.lowercased())
+        PlaybackEngine.isPlayable(url)
     }
 
     private func open(_ entry: FileEntry) {

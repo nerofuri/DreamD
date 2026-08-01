@@ -1,6 +1,5 @@
 import SwiftUI
 import QuickLook
-import AVKit
 
 /// QuickLook preview for downloaded files (documents, images, many videos).
 struct QuickLookView: UIViewControllerRepresentable {
@@ -30,27 +29,6 @@ struct QuickLookView: UIViewControllerRepresentable {
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
             url as NSURL
         }
-    }
-}
-
-/// Native video/audio player for downloaded media.
-struct PlayerView: View {
-    let url: URL
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            VideoPlayer(player: AVPlayer(url: url))
-                .ignoresSafeArea(edges: .bottom)
-                .navigationTitle(url.lastPathComponent)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { dismiss() }
-                    }
-                }
-        }
-        .preferredColorScheme(.dark)
     }
 }
 

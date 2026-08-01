@@ -72,6 +72,9 @@ struct TabContentView: View {
         .sheet(item: $shareItem) { url in
             ShareSheet(items: [url])
         }
+        .sheet(item: $tab.pendingPlayback) { url in
+            UniversalPlayerView(url: url)
+        }
     }
 
     private var mediaPill: some View {

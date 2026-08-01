@@ -78,6 +78,7 @@ struct DownloadRow: View {
     @ObservedObject var item: DownloadItem
     @EnvironmentObject var downloads: DownloadManager
     @State private var previewURL: URL?
+    @State private var playerURL: URL?
     @State private var shareURL: URL?
 
     var body: some View {
@@ -114,11 +115,22 @@ struct DownloadRow: View {
             if item.state == .completed, let url = item.destinationURL,
                FileManager.default.fileExists(atPath: url.path),
                !url.hasDirectoryPath {
-                previewURL = url
+                if PlaybackEngine.isPlayable(url) {
+                    playerURL = url
+                } else {
+                    previewURL = url
+                }
             }
         }
         .contextMenu {
             if item.state == .completed, let url = item.destinationURL {
+                if PlaybackEngine.isPlayable(url) {
+                    Button {
+                        playerURL = url
+                    } label: {
+                        Label("Play", systemImage: "play.circle")
+                    }
+                }
                 Button {
                     shareURL = url
                 } label: {
@@ -143,6 +155,9 @@ struct DownloadRow: View {
         }
         .sheet(item: $previewURL) { url in
             QuickLookView(url: url)
+        }
+        .sheet(item: $playerURL) { url in
+            UniversalPlayerView(url: url)
         }
         .sheet(item: $shareURL) { url in
             ShareSheet(items: [url])

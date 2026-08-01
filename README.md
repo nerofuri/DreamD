@@ -42,8 +42,21 @@ built-in BitTorrent client.
 - Piece verification (SHA-1), multi-file torrents, resume with on-disk
   hash re-checking after relaunch, uploads blocks to peers that ask
 
+### Universal video player (plays every format)
+- Plays essentially any container/codec — **MP4, MOV, M4V, MKV, AVI, FLV,
+  TS/M2TS, WMV, WebM, MPEG/VOB, OGV, 3GP, ASF, DivX**, plus audio (MP3, FLAC,
+  Opus, WMA, AAC, …)
+- Uses Apple's **AVPlayer** for hardware-accelerated native formats and
+  **VLCKit** (software decoding) for everything else, chosen automatically
+- Custom transport controls: play/pause, ±10s skip, scrub bar, time labels,
+  tap-to-hide, buffering spinner
+- Works from three places: the Files screen, the Downloads list (tap a
+  finished video), and the **browser** — a page that navigates to a video the
+  web engine can't render (e.g. `.mkv`, `.avi`) opens in the universal player,
+  and any sniffed stream has a Play button
+
 ### Files
-- Built-in file browser with QuickLook previews, AVPlayer playback,
+- Built-in file browser with QuickLook previews, universal-player playback,
   sharing, and deletion
 - Downloads are visible in the system Files app (On My iPhone → DreamD)
 
@@ -51,10 +64,21 @@ built-in BitTorrent client.
 
 1. Open `DreamD.xcodeproj` in **Xcode 16 or newer** (the project uses
    folder-synchronized groups) on macOS.
-2. Select the DreamD target → Signing & Capabilities → pick your Team
+2. On first open Xcode resolves the one Swift Package dependency,
+   **VLCKit** (`https://github.com/tylerjonesio/vlckit-spm`, product
+   `VLCKitSPM`), which provides the all-format video playback. Let it finish
+   downloading (it's a large binary framework the first time). If you prefer,
+   you can swap it for `pod 'MobileVLCKit'` or the
+   `MobileVLCKit-SPM` package — the player code imports whichever of
+   `VLCKitSPM` / `MobileVLCKit` is present.
+3. Select the DreamD target → Signing & Capabilities → pick your Team
    (a free Apple ID works for personal installs).
-3. Plug in your iPhone, select it as the run destination, and press Run.
+4. Plug in your iPhone, select it as the run destination, and press Run.
    Deployment target is iOS 16.0.
+
+> The player is guarded with `#if canImport(...)`. If you remove the VLCKit
+> package the app still builds and runs, falling back to AVPlayer for the
+> formats Apple supports natively.
 
 ## Notes & limitations
 
@@ -66,8 +90,8 @@ built-in BitTorrent client.
 - **DRM is not supported** — FairPlay/Widevine/SAMPLE-AES streams cannot be
   downloaded, by design.
 - **Live HLS streams** (no `EXT-X-ENDLIST`) are not downloadable.
-- `.ts` output plays best in VLC/Infuse (share from the Files screen);
-  fMP4 streams are saved as `.mp4` and play natively.
+- `.ts` and other non-Apple formats play in-app via the built-in VLCKit
+  engine; fMP4 streams are saved as `.mp4` and play through AVPlayer.
 - **App Store:** Apple does not accept torrent clients on the App Store;
   this app is intended for personal sideloading (Xcode, AltStore, etc.).
 - Only download content you have the rights to save.

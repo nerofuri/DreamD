@@ -19,6 +19,9 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
     @Published var snapshot: UIImage?
     @Published var detectedMedia: [DetectedMedia] = []
     @Published var desktopMode = false
+    /// Set when a page navigates to a video the web view can't render itself;
+    /// the UI presents the universal player for it.
+    @Published var pendingPlayback: URL?
 
     var isNewTabPage: Bool { currentURL == nil }
 
@@ -167,6 +170,14 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
         "application/vnd.apple.mpegurl", "application/x-mpegurl", "audio/mpegurl", "audio/x-mpegurl"
     ]
 
+    /// Video containers the web view can't play but the universal player can.
+    /// A direct navigation to one of these opens the in-app player instead of
+    /// downloading, so the browser can play any format.
+    private static let playableInBrowser: Set<String> = [
+        "mkv", "avi", "flv", "wmv", "webm", "mov", "m4v", "mpg", "mpeg",
+        "vob", "ogv", "3gp", "3g2", "m2ts", "mts", "asf", "divx", "f4v", "rmvb"
+    ]
+
     fileprivate func handleDownloadableResponse(url: URL, mime: String) {
         let title = self.title
         DispatchQueue.main.async {
@@ -215,11 +226,22 @@ extension BrowserTab: WKNavigationDelegate, WKUIDelegate {
         if let http = navigationResponse.response as? HTTPURLResponse {
             disposition = (http.value(forHTTPHeaderField: "Content-Disposition") ?? "").lowercased()
         }
+        let ext = url.pathExtension.lowercased()
+        let isPlayableVideo = (Self.playableInBrowser.contains(ext) || mime.hasPrefix("video/"))
+            && !disposition.contains("attachment")
+            && ext != "torrent"
+        if isPlayableVideo && !navigationResponse.canShowMIMEType && vlcPlaybackAvailable {
+            // The web view can't render this format, but the universal player can.
+            DispatchQueue.main.async { self.pendingPlayback = url }
+            decisionHandler(.cancel)
+            return
+        }
+
         let shouldDownload = !navigationResponse.canShowMIMEType
             || disposition.contains("attachment")
             || Self.downloadMIMEs.contains(mime)
             || Self.hlsMIMEs.contains(mime)
-            || url.pathExtension.lowercased() == "torrent"
+            || ext == "torrent"
         if shouldDownload {
             handleDownloadableResponse(url: url, mime: mime)
             decisionHandler(.cancel)

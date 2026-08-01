@@ -174,6 +174,7 @@ struct MediaListSheet: View {
     @ObservedObject var tab: BrowserTab
     @Environment(\.dismiss) private var dismiss
     @State private var startedIDs: Set<UUID> = []
+    @State private var playerURL: URL?
 
     var body: some View {
         NavigationStack {
@@ -201,8 +202,17 @@ struct MediaListSheet: View {
                             }
                         }
                         Spacer()
+                        Button {
+                            playerURL = media.url
+                        } label: {
+                            Image(systemName: "play.circle")
+                                .font(.system(size: 26))
+                                .foregroundColor(ChromeColor.blue)
+                        }
+                        .buttonStyle(.plain)
                         if startedIDs.contains(media.id) {
                             Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 24))
                                 .foregroundColor(.green)
                         } else {
                             Button {
@@ -216,6 +226,11 @@ struct MediaListSheet: View {
                         }
                     }
                     .contextMenu {
+                        Button {
+                            playerURL = media.url
+                        } label: {
+                            Label("Play", systemImage: "play.circle")
+                        }
                         Button {
                             UIPasteboard.general.string = media.url.absoluteString
                         } label: {
@@ -236,6 +251,9 @@ struct MediaListSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(item: $playerURL) { url in
+                UniversalPlayerView(url: url)
             }
         }
         .preferredColorScheme(.dark)

@@ -76,6 +76,10 @@ struct UniversalPlayerView: View {
             try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
             try? AVAudioSession.sharedInstance().setActive(true)
         }
+        .onDisappear {
+            // Hand the audio session back to the background keep-alive, if on.
+            BackgroundKeepAlive.shared.reassertIfNeeded()
+        }
     }
 
     private var avPlayer: some View {

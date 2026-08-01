@@ -55,6 +55,16 @@ built-in BitTorrent client.
   web engine can't render (e.g. `.mkv`, `.avi`) opens in the universal player,
   and any sniffed stream has a Play button
 
+### Background downloads (keep-alive)
+- Optional **Run downloads in background** toggle (Settings) that keeps DreamD
+  alive so torrents/HLS/HTTP downloads keep progressing after you leave the app
+- Two methods, like other sideloaded apps:
+  - **Audio** — plays a silent, looping buffer under the `audio` background
+    mode (mixes with your music, so it won't interrupt playback)
+  - **Location** — subscribes to low-accuracy background location updates used
+    purely as a wake source (coordinates are never stored or sent anywhere)
+- Off by default; both increase battery usage while active
+
 ### Files
 - Built-in file browser with QuickLook previews, universal-player playback,
   sharing, and deletion
@@ -82,9 +92,13 @@ built-in BitTorrent client.
 
 ## Notes & limitations
 
-- **Backgrounding:** iOS suspends apps in the background, so torrent and HLS
-  downloads run while DreamD is in the foreground. Plain single-stream HTTP
-  downloads survive short suspensions via URLSession.
+- **Backgrounding:** iOS suspends apps in the background, so by default torrent
+  and HLS downloads run while DreamD is in the foreground. Turn on **Settings →
+  Background → Run downloads in background** (Audio or Location method) to keep
+  the app awake so they continue while backgrounded. Plain single-stream HTTP
+  downloads also survive short suspensions via URLSession.
+  The Location method needs "Always" location permission to work in the
+  background.
 - **Magnet links need trackers.** DHT is not implemented, so magnets must
   include `tr=` tracker parameters (most do). Torrent files always work.
 - **DRM is not supported** — FairPlay/Widevine/SAMPLE-AES streams cannot be

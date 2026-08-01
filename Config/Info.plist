@@ -48,6 +48,17 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>DreamD connects directly to peers to transfer torrent data.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>location</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>DreamD uses your location only to keep downloads running while the app is in the background. Your location is never stored or shared.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>DreamD uses your location only to keep downloads running while the app is in the background. Your location is never stored or shared.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

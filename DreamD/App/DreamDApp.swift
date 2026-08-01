@@ -11,6 +11,9 @@ struct DreamDApp: App {
                 .environmentObject(tabManager)
                 .environmentObject(downloadManager)
                 .preferredColorScheme(.dark)
+                .onAppear {
+                    BackgroundKeepAlive.shared.applyOnLaunch()
+                }
                 .onOpenURL { url in
                     handleIncoming(url)
                 }

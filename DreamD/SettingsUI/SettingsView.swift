@@ -5,12 +5,46 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("maxConnections") private var maxConnections = 8
     @AppStorage("maxPeers") private var maxPeers = 30
+    @ObservedObject private var keepAlive = BackgroundKeepAlive.shared
     @State private var clearedHistory = false
     @State private var clearedCookies = false
+
+    @ViewBuilder
+    private var backgroundSection: some View {
+        Section {
+            Toggle("Run downloads in background", isOn: $keepAlive.isEnabled)
+            if keepAlive.isEnabled {
+                Picker("Method", selection: $keepAlive.method) {
+                    ForEach(KeepAliveMethod.allCases) { m in
+                        Text(m == .audio ? "Audio" : "Location").tag(m)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+        } header: {
+            Text("Background")
+        } footer: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("This keeps DreamD active in the background so downloads keep running, but will increase your battery usage.")
+                if keepAlive.isEnabled {
+                    Text(keepAlive.method == .audio
+                         ? "Audio: plays silent audio (mixes with your music) to stay awake."
+                         : "Location: uses low-accuracy background location as a wake source. Nothing is stored or shared.")
+                        .foregroundColor(.secondary)
+                }
+                if keepAlive.isEnabled && keepAlive.method == .location && keepAlive.locationDenied {
+                    Text("Location access is off. Enable it in Settings → DreamD → Location (set to Always) for background downloads.")
+                        .foregroundColor(.orange)
+                }
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
             Form {
+                backgroundSection
+
                 Section {
                     Stepper(value: $maxConnections, in: 1...16) {
                         VStack(alignment: .leading, spacing: 2) {

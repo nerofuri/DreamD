@@ -101,6 +101,9 @@ enum Bencode {
         }
 
         func parseValue(depth: Int) throws -> BValue {
+            // Cap nesting so a crafted .torrent / peer metadata can't overflow
+            // the stack through deeply nested lists or dictionaries.
+            guard depth < 100 else { throw BencodeError.malformed }
             guard position < bytes.count else { throw BencodeError.malformed }
             switch bytes[position] {
             case UInt8(ascii: "i"):

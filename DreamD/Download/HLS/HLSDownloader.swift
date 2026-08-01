@@ -101,8 +101,12 @@ final class HLSDownloader: NSObject, DownloadWorker {
         if playlist.isLive {
             throw HLSError.liveStream
         }
-        if let key = playlist.segments.first?.key, key.method != "NONE", key.method != "AES-128" {
-            throw HLSError.drmProtected(key.method)
+        // Any segment using something other than clear or AES-128 (e.g.
+        // SAMPLE-AES / FairPlay) can't be decrypted, so refuse the whole stream
+        // rather than writing undecryptable data.
+        if let unsupported = playlist.segments.lazy.compactMap({ $0.key })
+            .first(where: { $0.method != "NONE" && $0.method != "AES-128" }) {
+            throw HLSError.drmProtected(unsupported.method)
         }
 
         segments = playlist.segments

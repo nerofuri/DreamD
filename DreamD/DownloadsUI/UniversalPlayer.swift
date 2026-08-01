@@ -146,7 +146,10 @@ final class VLCPlayerViewController: UIViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         hideTimer?.invalidate()
-        if mediaPlayer.isPlaying { mediaPlayer.stop() }
+        hideTimer = nil
+        // Stop regardless of play/pause state so a paused player still releases
+        // its decoder and the audio session on dismiss.
+        mediaPlayer.stop()
     }
 
     // MARK: - Layout
